@@ -7,9 +7,10 @@
     "start": "next start"
   },
   "dependencies": {
-    "next": "15.0.5",
+    "next": "latest",
     "react": "^18",
-    "react-dom": "^18"
+    "react-dom": "^18",
+    "@supabase/supabase-js": "latest"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.0",
