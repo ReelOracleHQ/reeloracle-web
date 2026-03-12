@@ -1,10 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Remove the || 'YOUR_KEY' part entirely!
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Configuration
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
+
+const PLATFORM_LINKS = {
+  'netflix': (t) => `https://www.netflix.com/search?q=${encodeURIComponent(t)}`,
+  'prime video': (t) => `https://www.primevideo.com/search/ref=atv_nb_sr?phrase=${encodeURIComponent(t)}`,
+  'amazon prime': (t) => `https://www.primevideo.com/search/ref=atv_nb_sr?phrase=${encodeURIComponent(t)}`,
+  'jiohotstar': (t) => `https://www.jiohotstar.com/search?q=${encodeURIComponent(t)}`,
+  'hotstar': (t) => `https://www.jiohotstar.com/search?q=${encodeURIComponent(t)}`,
+  'zee5': (t) => `https://www.zee5.com/search?q=${encodeURIComponent(t)}`,
+  'sonyliv': (t) => `https://www.sonyliv.com/search?query=${encodeURIComponent(t)}`,
+  'jiocinema': (t) => `https://www.jiocinema.com/search/${encodeURIComponent(t)}`,
+};
 
 export default function Home() {
   const [heroMovie, setHeroMovie] = useState(null);
@@ -13,38 +25,35 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Fetch initial data on load
   useEffect(() => {
     async function loadHomepage() {
-      // 1. Get Top 25 Movies for the Netflix-style row
-      const { data: topData } = await supabase
+      const { data: topData, error } = await supabase
         .from('movies')
         .select('*')
         .order('imdb_rating', { ascending: false })
         .limit(25);
 
-      if (topData) {
+      if (topData && !error) {
         setTopMovies(topData);
-        // 2. Pick a random highly-rated movie for the Hero section
-        const randomHero = topData[Math.floor(Math.random() * Math.min(topData.length, 10))];
+        const randomHero = topData[Math.floor(Math.random() * Math.min(topData.length, 5))];
         setHeroMovie(randomHero);
       }
     }
     loadHomepage();
   }, []);
 
-  // Live Search Function
   const handleSearch = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
 
-    if (query.length > 2) {
+    if (query.trim().length > 2) {
       setIsSearching(true);
       const { data } = await supabase
         .from('movies')
         .select('*')
         .ilike('title', `%${query}%`)
-        .limit(10);
+        .order('imdb_rating', { ascending: false })
+        .limit(12);
       setSearchResults(data || []);
     } else {
       setIsSearching(false);
@@ -52,66 +61,72 @@ export default function Home() {
     }
   };
 
-  // Helper to format platform buttons
-  const renderPlatforms = (platformsString) => {
-    if (!platformsString) return <span className="text-gray-500 italic text-sm">Verifying...</span>;
+  const getPlatformURL = (platform, title) => {
+    const key = platform.toLowerCase().trim();
+    for (const [name, fn] of Object.entries(PLATFORM_LINKS)) {
+      if (key.includes(name)) return fn(title);
+    }
+    return `https://www.google.com/search?q=${encodeURIComponent(title + ' watch on ' + platform)}`;
+  };
+
+  const renderPlatforms = (platformsString, title) => {
+    if (!platformsString) return <span className="text-gray-500 italic text-xs">Platforms pending...</span>;
     const plats = platformsString.split(',').map(p => p.trim());
     return (
       <div className="flex flex-wrap gap-2 mt-3">
         {plats.map((plat, i) => (
-          <div key={i} className="px-3 py-1.5 bg-[#16152B] border border-[#33305C] rounded-md text-xs font-bold text-white shadow-sm">
+          <a 
+            key={i} 
+            href={getPlatformURL(plat, title)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 bg-[#16152B] border border-[#33305C] rounded-md text-[10px] font-black text-white hover:bg-[#00D4FF] hover:text-black hover:border-[#00D4FF] transition-all shadow-sm flex items-center gap-1 uppercase tracking-tighter"
+          >
             ▶️ {plat}
-          </div>
+          </a>
         ))}
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0F1E] text-white font-sans selection:bg-[#00D4FF] selection:text-black">
+    <div className="min-h-screen bg-[#060914] text-white font-sans selection:bg-[#00D4FF] selection:text-black">
       
-      {/* ── NAVBAR & SEARCH ── */}
-      <nav className="w-full p-6 border-b border-white/10 bg-[#0A0F1E]/80 backdrop-blur-xl sticky top-0 z-50 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div className="text-3xl font-black tracking-tighter">
-          Reel<span className="text-[#00D4FF]">Oracle</span>
+      {/* ── NAVBAR ── */}
+      <nav className="w-full p-6 border-b border-white/5 bg-[#060914]/90 backdrop-blur-2xl sticky top-0 z-50 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="text-3xl font-black tracking-tighter cursor-pointer" onClick={() => window.scrollTo(0,0)}>
+          REEL<span className="text-[#00D4FF]">ORACLE</span>
         </div>
         
-        {/* The Live Search Bar */}
         <div className="w-full max-w-xl relative">
           <input 
             type="text" 
-            placeholder="Search any movie (e.g., Pushpa 2, RRR)..." 
+            placeholder="Search 10,000+ movies across all OTTs..." 
             value={searchQuery}
             onChange={handleSearch}
-            className="w-full px-6 py-4 rounded-full bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:border-[#00D4FF] focus:ring-1 focus:ring-[#00D4FF] transition-all"
+            className="w-full px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:border-[#00D4FF] focus:ring-4 focus:ring-[#00D4FF]/10 transition-all"
           />
-          {searchQuery && (
-            <button onClick={() => {setSearchQuery(''); setIsSearching(false);}} className="absolute right-6 top-4 text-gray-400 hover:text-white">
-              ✕
-            </button>
-          )}
         </div>
 
-        <a href="https://t.me/ReelOracleHQBot" target="_blank" className="bg-gradient-to-r from-[#00D4FF] to-blue-500 text-black px-6 py-3 rounded-full font-bold hover:scale-105 transition-transform shadow-[0_0_20px_rgba(0,212,255,0.3)] whitespace-nowrap hidden lg:block">
-          Open in Telegram
+        <a href="https://t.me/ReelOracleHQBot" target="_blank" className="hidden lg:flex items-center gap-2 bg-[#00D4FF] text-black px-6 py-3 rounded-xl font-black text-sm hover:scale-105 transition-transform shadow-[0_0_30px_rgba(0,212,255,0.2)]">
+          TRY ON TELEGRAM
         </a>
       </nav>
 
       <main className="pb-24">
         
-        {/* ── CONDITIONAL VIEW: SEARCH RESULTS OR HOMEPAGE ── */}
         {isSearching ? (
-          <section className="px-6 lg:px-24 pt-12 max-w-7xl mx-auto">
-            <h2 className="text-2xl font-bold mb-8 text-[#00D4FF]">Search Results for "{searchQuery}"</h2>
+          <section className="px-6 lg:px-24 pt-12 max-w-7xl mx-auto animate-in fade-in duration-500">
+            <h2 className="text-xl font-black mb-8 text-gray-400 uppercase tracking-widest">Results for "{searchQuery}"</h2>
             {searchResults.length === 0 ? (
-              <p className="text-gray-400 text-lg">No movies found. Try another search.</p>
+              <div className="py-20 text-center opacity-50"><span className="text-6xl">🔍</span><p className="mt-4">Oracle found no matches. Check spelling?</p></div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {searchResults.map((movie) => (
-                  <div key={movie.id} className="bg-white/5 border border-white/10 p-5 rounded-2xl hover:bg-white/10 transition-colors">
-                    <h3 className="text-xl font-bold">{movie.title} <span className="text-gray-400 text-sm font-normal">({movie.year})</span></h3>
-                    <p className="text-sm text-[#00D4FF] mt-1">⭐ {movie.imdb_rating} | 🌐 {movie.language}</p>
-                    {renderPlatforms(movie.platforms)}
+                  <div key={movie.id} className="bg-white/5 border border-white/10 p-6 rounded-3xl hover:bg-white/10 transition-all group">
+                    <h3 className="text-2xl font-black group-hover:text-[#00D4FF] transition-colors">{movie.title}</h3>
+                    <p className="text-sm text-gray-500 font-bold mt-1 uppercase tracking-tighter">⭐ {movie.imdb_rating} | {movie.language} | {movie.year}</p>
+                    {renderPlatforms(movie.platforms, movie.title)}
                   </div>
                 ))}
               </div>
@@ -119,67 +134,74 @@ export default function Home() {
           </section>
         ) : (
           <>
-            {/* ── HOMEPAGE HERO (Movie of the Day) ── */}
+            {/* ── HERO ── */}
             {heroMovie && (
-              <section className="px-6 lg:px-24 py-16 lg:py-24 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-12 border-b border-white/5">
-                <div className="flex-1 space-y-6">
-                  <h1 className="text-xs font-bold tracking-[0.2em] text-[#00D4FF] uppercase">Movie of the Day</h1>
-                  <h2 className="text-5xl lg:text-7xl font-black leading-tight">{heroMovie.title}</h2>
-                  <div className="flex gap-4 text-sm font-semibold opacity-80">
-                    <span className="bg-white/10 px-3 py-1 rounded">⭐ {heroMovie.imdb_rating}</span>
-                    <span className="bg-white/10 px-3 py-1 rounded">{heroMovie.year}</span>
-                    <span className="bg-white/10 px-3 py-1 rounded">{heroMovie.language}</span>
+              <section className="px-6 lg:px-24 py-16 lg:py-32 max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-16 border-b border-white/5">
+                <div className="flex-1 space-y-8 text-center lg:text-left">
+                  <div className="inline-block px-4 py-1 rounded-full bg-[#00D4FF]/10 text-[#00D4FF] text-[10px] font-black tracking-[0.3em] uppercase">Movie of the Day</div>
+                  <h2 className="text-6xl lg:text-9xl font-black leading-none tracking-tighter">{heroMovie.title}</h2>
+                  <div className="flex justify-center lg:justify-start gap-4 text-xs font-black uppercase tracking-widest opacity-60">
+                    <span>⭐ {heroMovie.imdb_rating} IMDb</span>
+                    <span>•</span>
+                    <span>{heroMovie.year}</span>
+                    <span>•</span>
+                    <span>{heroMovie.language}</span>
                   </div>
-                  <div className="pt-4">
-                    <p className="text-gray-400 text-sm mb-3 uppercase tracking-wider">Stream it instantly on:</p>
-                    {renderPlatforms(heroMovie.platforms)}
+                  <div className="pt-6">
+                    <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] mb-4">Available to stream on:</p>
+                    <div className="flex justify-center lg:justify-start">
+                        {renderPlatforms(heroMovie.platforms, heroMovie.title)}
+                    </div>
                   </div>
                 </div>
-                <div className="flex-1 w-full max-w-sm">
-                  <div className="relative aspect-[2/3] w-full rounded-2xl border border-white/20 bg-gradient-to-tr from-purple-900/40 to-blue-900/40 shadow-[0_0_50px_rgba(0,212,255,0.1)] flex items-center justify-center overflow-hidden">
+                
+                <div className="flex-1 w-full max-w-md group">
+                  <div className="relative aspect-[2/3] w-full rounded-[2.5rem] border border-white/10 bg-gradient-to-br from-[#16152B] to-[#060914] shadow-2xl overflow-hidden transform group-hover:rotate-2 transition-transform duration-700">
                     {heroMovie.poster_url ? (
                       <img src={heroMovie.poster_url} alt={heroMovie.title} className="w-full h-full object-cover" />
                     ) : (
-                      <div className="text-center p-6"><span className="text-5xl">🎬</span><p className="mt-4 text-gray-400">Poster coming soon</p></div>
+                      <div className="h-full flex flex-col items-center justify-center opacity-20"><span className="text-8xl">🎬</span><p className="mt-4 font-black">IMAGE PENDING</p></div>
                     )}
                   </div>
                 </div>
               </section>
             )}
 
-            {/* ── NETFLIX-STYLE ROW: TOP RATED ── */}
-            <section className="px-6 lg:px-24 pt-16 max-w-[1600px] mx-auto overflow-hidden">
-              <div className="flex justify-between items-end mb-6">
-                <h2 className="text-2xl font-bold">Top Rated Masterpieces</h2>
-              </div>
-              
-              {/* Horizontal Scroll Container */}
-              <div className="flex gap-6 overflow-x-auto pb-8 snap-x scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
+            {/* ── MASTERPIECE ROW ── */}
+            <section className="px-6 lg:px-24 pt-20 max-w-[1600px] mx-auto">
+              <h2 className="text-sm font-black uppercase tracking-[0.4em] text-gray-500 mb-8">Top Rated Masterpieces</h2>
+              <div className="flex gap-6 overflow-x-auto pb-12 snap-x no-scrollbar">
                 {topMovies.map((movie) => (
-                  <div key={movie.id} className="min-w-[280px] max-w-[280px] snap-start bg-white/5 border border-white/10 rounded-xl p-5 hover:bg-white/10 transition-all cursor-pointer group">
-                    <h3 className="text-lg font-bold truncate group-hover:text-[#00D4FF] transition-colors">{movie.title}</h3>
-                    <p className="text-sm text-gray-400 mt-1">⭐ {movie.imdb_rating} | {movie.year}</p>
-                    <div className="mt-4">
-                      {renderPlatforms(movie.platforms)}
+                  <div key={movie.id} className="min-w-[320px] snap-start bg-white/5 border border-white/10 rounded-3xl p-8 hover:bg-white/10 transition-all cursor-pointer group hover:-translate-y-2">
+                    <h3 className="text-2xl font-black truncate group-hover:text-[#00D4FF] transition-colors tracking-tight">{movie.title}</h3>
+                    <p className="text-xs font-bold text-gray-500 mt-2 uppercase">⭐ {movie.imdb_rating} / 10 • {movie.year}</p>
+                    <div className="mt-6">
+                      {renderPlatforms(movie.platforms, movie.title)}
                     </div>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* ── CALL TO ACTION ── */}
-            <section className="px-6 lg:px-24 pt-12 max-w-4xl mx-auto text-center">
-              <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-[#00D4FF]/30 p-8 rounded-3xl">
-                <h2 className="text-2xl font-bold mb-4">Watching with friends tonight?</h2>
-                <p className="text-gray-300 mb-6">Don't argue over what to watch. Add ReelOracle to your Telegram group and type <span className="text-[#00D4FF] font-mono">/movienight</span> to start a live vote.</p>
-                <a href="https://t.me/ReelOracleHQBot" target="_blank" className="inline-block bg-white text-black px-8 py-3 rounded-full font-bold hover:bg-gray-200 transition-colors">
-                  Try the Group Bot
+            {/* ── FOOTER CTA ── */}
+            <section className="px-6 lg:px-24 py-24 max-w-5xl mx-auto">
+              <div className="bg-gradient-to-br from-[#16152B] to-[#060914] border border-white/5 p-12 rounded-[3rem] text-center shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-[#00D4FF]/5 blur-[100px]" />
+                <h2 className="text-4xl font-black mb-4 tracking-tighter">Settle the Debate.</h2>
+                <p className="text-gray-400 mb-8 max-w-lg mx-auto font-medium">Add ReelOracle to your WhatsApp or Telegram group. Start live voting sessions and stop the "what should we watch" argument forever.</p>
+                <a href="https://t.me/ReelOracleHQBot" target="_blank" className="inline-block bg-white text-black px-12 py-4 rounded-2xl font-black text-sm hover:bg-[#00D4FF] transition-all shadow-xl">
+                  CONNECT BOT
                 </a>
               </div>
             </section>
           </>
         )}
       </main>
+
+      <style jsx global>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   )
 }
